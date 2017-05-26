@@ -1,6 +1,6 @@
 # thruk_cl
 
-thruk_cl will display WARNING and CRITICAL notifactions to your terminal.  
+thruk_cl will display WARNING and CRITICAL notifications to your terminal.  
 
 
 # Install
