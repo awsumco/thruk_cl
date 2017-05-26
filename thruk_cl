@@ -1,0 +1,98 @@
+#!/usr/bin/env python
+"""
+Needed modules.
+
+pip install blessings
+pip install ago
+
+"""
+
+import json,pprint,sys
+from blessings import Terminal
+
+global nagios_url
+global nagios_user
+global nagios_pass
+
+
+def grabJson(url,username,password):
+	import requests
+
+	url = "%s/thruk/cgi-bin/status.cgi" % url
+
+	params = (
+    		('hostgroup', 'all'),
+    		('style', 'detail'),
+    		('hoststatustypes', '15'),
+    		('servicestatustypes', '16'),
+    		('view_mode', 'json'),
+	)
+
+	headers = {'user-agent': 'curl'}
+	auth = (username,password)
+	r = requests.get(url, params=params, headers=headers, auth=auth)
+	return r.text
+
+def getAge(epoch):
+	from ago import human
+	from ago import delta2dict
+	from datetime import datetime
+	from datetime import timedelta
+	dd = datetime.fromtimestamp(epoch)
+	return human( dd, 1 ,past_tense = '{}',  abbreviate=True )
+
+def main():
+	import json,time
+	import optparse
+        p = optparse.OptionParser(description='Command line Thruk display tool',
+                                    prog='thruk_cl',
+                                    version='0.1',
+                                    usage='%prog -h')
+	p.add_option("--host", dest="host", type="string", help="Thruk hostname")
+	p.add_option("-u","--username", dest="username", type="string", help="Thruk username.")
+	p.add_option("-p","--password", dest="password", type="string", help="Thruk password")
+	options, arguments = p.parse_args()
+
+	if options.host:
+		if not options.username:
+			sys.exit("Missing username,")
+		if not options.password:
+			sys.exit("Missing password,")
+	else:
+		p.print_help()
+		sys.exit()
+
+	nagios_host = 'https://%s' % options.host
+	nagios_user = options.username
+	nagios_pass = options.password
+
+	t = Terminal()
+	json_file=grabJson(nagios_host,nagios_user,nagios_pass)
+	data = json.loads(json_file)
+	state_out = ''
+	problems = len(data)
+	if problems > 99:
+		prob_out = "You got %s problems but a bitch ain't one." % (problems)
+	else:
+		prob_out = "%s problems." % (problems)
+	for a in data:
+		# pprint.pprint(a)
+		hostname = t.bold_green(a['host_name'])
+		state = int(a['state'])
+		last_state_change = int(a['last_state_change'])
+		display_name = t.bold_yellow(a['display_name'])
+		age = getAge(last_state_change)
+		if state == 1:
+			state_out = t.blink_bold_yellow('WARNING')
+		elif state == 2:
+			state_out = t.blink_bold_red('CRITICAL')
+ 		plugin_output = t.underline_bold_red(a['plugin_output'].replace('WARNING -','').replace('CRITICAL -',''))
+		service_description = a['description']
+		out = """%s ::: %s ::: %s ::: %s ::: %s""" % (hostname,state_out,plugin_output,display_name,age)
+		print out
+	now = time.strftime("%c")
+	footer = "\nUpdated @ %s - %s\n" % (now,prob_out)
+	print t.bold_yellow(footer)
+
+if __name__ == '__main__':
+        main()
